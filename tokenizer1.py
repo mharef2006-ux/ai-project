@@ -15,6 +15,12 @@ class CharTokenizer:
             List[int]: List of character integer codes.
         """
         # TODO: Map each character in the string to its integer character code representation
+        self.text = text
+        self.code_char_list = []
+        for char in text:
+            self.code_char_list.append(ord(char))
+        return self.code_char_list
+    
         raise NotImplementedError("Implement this method")
 
     def decode(self, tokens: List[int]) -> str:
@@ -27,6 +33,10 @@ class CharTokenizer:
             str: Decoded text string.
         """
         # TODO: Map each integer code back to its corresponding character and combine them
+        self.tokens = tokens
+        self.decoded_text = ''.join(chr(token) for token in self.tokens)
+        return self.decoded_tex
+    
         raise NotImplementedError("Implement this method")
 
 
@@ -48,11 +58,12 @@ class BPETokenizer:
             Counter: Mapping of (token_a, token_b) tuples to their occurrence counts.
         """
         # TODO: Count frequency of adjacent pairs across the token sequence
+        pair_counts = Counter((tokens[i], tokens[i + 1]) for i in range(len(tokens) - 1))
+        return pair_counts
         raise NotImplementedError("Implement this method")
 
     def _merge_pair(
-        self, tokens: List[int], pair: Tuple[int, int], new_token: int
-    ) -> List[int]:
+        self, tokens: List[int], pair: Tuple[int, int], new_token: int) -> List[int]:
         """Replace non-overlapping occurrences of a target adjacent pair with a new merged token ID.
 
         Args:
@@ -64,6 +75,17 @@ class BPETokenizer:
             List[int]: Updated sequence with non-overlapping target pair merged.
         """
         # TODO: Iterate through sequence and substitute target pair occurrences with new token without overlapping
+        merged_tokens = []
+        i = 0
+        while i < len(tokens):
+            if i < len(tokens) - 1 and (tokens[i], tokens[i + 1]) == pair:
+                merged_tokens.append(new_token)
+                i += 2  # Skip the next token since it's part of the merged pair
+            else:
+                merged_tokens.append(tokens[i])
+                i += 1
+        return merged_tokens
+    
         raise NotImplementedError("Implement this method")
 
     def train(self, text: str, num_merges: int) -> "BPETokenizer":
@@ -77,6 +99,17 @@ class BPETokenizer:
             BPETokenizer: Self instance after training.
         """
         # TODO: Initialize 256 base byte tokens in vocab, compute pair frequencies, and iteratively merge top pair
+        
+        tokens = list(text.encode("utf-8"))
+        for i in range(num_merges):
+            pair=self._get_pairs(tokens)
+            if not pair:
+                break
+            pair = pair.most_common(1)[0][0]
+            new_token = 256 + i
+            tokens = self._merge_pair(tokens, pair, new_token)
+            self.merges[pair] = new_token
+        return self
         raise NotImplementedError("Implement this method")
 
     def encode(self, text: str) -> List[int]:
@@ -89,6 +122,9 @@ class BPETokenizer:
             List[int]: Encoded list of BPE token IDs.
         """
         # TODO: Convert text into raw UTF-8 bytes and iteratively apply learned merge rules in order
+        tokens = list(text.encode("utf-8"))
+        
+        
         raise NotImplementedError("Implement this method")
 
     def decode(self, tokens: List[int]) -> str:
