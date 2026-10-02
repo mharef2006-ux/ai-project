@@ -123,8 +123,7 @@ class BPETokenizer:
         """
         # TODO: Convert text into raw UTF-8 bytes and iteratively apply learned merge rules in order
         tokens = list(text.encode("utf-8"))
-        
-        
+        return tokens
         raise NotImplementedError("Implement this method")
 
     def decode(self, tokens: List[int]) -> str:
@@ -137,6 +136,8 @@ class BPETokenizer:
             str: Reconstructed text string.
         """
         # TODO: Lookup byte sequences for tokens, concatenate them, and decode UTF-8 bytes into text
+        text = bytes(tokens).decode("utf-8", errors="replace")
+        return text
         raise NotImplementedError("Implement this method")
 
     def vocab_size(self) -> int:
@@ -146,6 +147,9 @@ class BPETokenizer:
             int: Total number of unique tokens in the vocabulary.
         """
         # TODO: Return total number of items in vocabulary
+        voc_size = len(self.vocab)
+        return voc_size
+    
         raise NotImplementedError("Implement this method")
 
     def token_to_str(self, token_id: int) -> str:
@@ -158,6 +162,10 @@ class BPETokenizer:
             str: String representation of the token bytes.
         """
         # TODO: Fetch byte mapping for token ID and decode into printable string format
+        if token_id in self.vocab:
+            return self.vocab[token_id].decode("utf-8", errors="replace")
+        else:
+            return f"<UNK:{token_id}>"
         raise NotImplementedError("Implement this method")
 
 
@@ -174,6 +182,11 @@ def compression_ratio(tokenizer: Any, text: str) -> float:
         float: Ratio of encoded token count to raw byte length (0.0 if empty).
     """
     # TODO: Calculate encoded token count relative to raw UTF-8 byte length, returning 0.0 for empty input
+    original_bytes = len(text.encode("utf-8"))
+    tokens = tokenizer.encode(text)
+    
+    ratio = original_bytes / len(tokens) if len(tokens) > 0 else 0.0
+    return ratio
     raise NotImplementedError("Implement this method")
 
 
