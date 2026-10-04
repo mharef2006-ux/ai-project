@@ -47,7 +47,8 @@ class BPETokenizer:
         """Initialize vocabulary and merge rules storage."""
         self.merges: Dict[Tuple[int, int], int] = {}
         self.vocab: Dict[int, bytes] = {}
-
+        for i in range(256):
+            self.vocab[i] = bytes([i])
     def _get_pairs(self, tokens: List[int]) -> Counter:
         """Count frequencies of adjacent token pairs in a sequence.
 
@@ -109,6 +110,7 @@ class BPETokenizer:
             new_token = 256 + i
             tokens = self._merge_pair(tokens, pair, new_token)
             self.merges[pair] = new_token
+            self.vocab[new_token] = (self.vocab[pair[0]] + self.vocab[pair[1]]) if pair[0] in self.vocab and pair[1] in self.vocab else bytes(pair)
         return self
         raise NotImplementedError("Implement this method")
 
@@ -123,6 +125,18 @@ class BPETokenizer:
         """
         # TODO: Convert text into raw UTF-8 bytes and iteratively apply learned merge rules in order
         tokens = list(text.encode("utf-8"))
+        while True:
+            pairs = self._get_pairs(tokens)
+            best_pair = None
+            new_token = None
+            for pair , token_id in self.merges.items():
+                if pair in pairs:
+                    best_pair = pair
+                    new_token = token_id
+                    break
+            if best_pair is None:
+                break
+            tokens = self._merge_pair(tokens,best_pair,new_token)
         return tokens
         raise NotImplementedError("Implement this method")
 
@@ -136,8 +150,14 @@ class BPETokenizer:
             str: Reconstructed text string.
         """
         # TODO: Lookup byte sequences for tokens, concatenate them, and decode UTF-8 bytes into text
-        text = bytes(tokens).decode("utf-8", errors="replace")
-        return text
+        byte_data = b""
+        for token_id in tokens:
+            if token_id in self.vocab:
+                byte_data += self.vocab[token_id]
+            else:
+                byte_data += bytes([token_id])  # Fallback for unknown tokens
+        return byte_data.decode("utf-8", errors="replace")
+    
         raise NotImplementedError("Implement this method")
 
     def vocab_size(self) -> int:
@@ -147,8 +167,8 @@ class BPETokenizer:
             int: Total number of unique tokens in the vocabulary.
         """
         # TODO: Return total number of items in vocabulary
-        voc_size = len(self.vocab)
-        return voc_size
+        
+        return len(self.vocab)
     
         raise NotImplementedError("Implement this method")
 
@@ -185,7 +205,7 @@ def compression_ratio(tokenizer: Any, text: str) -> float:
     original_bytes = len(text.encode("utf-8"))
     tokens = tokenizer.encode(text)
     
-    ratio = original_bytes / len(tokens) if len(tokens) > 0 else 0.0
+    ratio = len(tokens) / original_bytes if original_bytes > 0 else 0.0
     return ratio
     raise NotImplementedError("Implement this method")
 
@@ -201,7 +221,27 @@ def vocabulary_stats(tokenizer: Any, texts: List[str]) -> None:
         None
     """
     # TODO: Compute token frequency metrics, average token lengths per word, and output summary stats
-    pass
+    token_count = Counter()
+    total_tokens = 0
+    total_words = 0
+    for text in texts:
+        tokens = tokenizer.encode(text)
+        total_tokens += len(tokens)
+        total_words += len(text.split())
+        avg_token_per_word = (total_tokens / total_words) if total_words > 0 else 0.0
+    print("=" * 60)
+    print("VOCABULARY STATS")
+    print("=" * 60)
+    print(f"Vocabulary size: {tokenizer.vocab_size()}")
+    print(f"Total texts: {len(texts)}")
+    print(f"Total words: {total_words}")    
+    print(f"Total tokens: {total_tokens}")
+    print(f"Average tokens per word: {avg_token_per_word:.2f}")
+    print("\nMost frequent tokens:")
+    for token_id, count in token_count.most_common(5):
+        token = tokenizer.token_to_str(token_id)
+        print(f"  Token :{token_id} : {token!r} -> Count: {count}")
+    raise NotImplementedError("Implement this method")
 
 
 # [KEEP_IMPLEMENTATION]
