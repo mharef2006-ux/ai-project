@@ -18,6 +18,11 @@ def clean_text(text: str) -> str:
         str: Cleaned and normalized text string.
     """
     # TODO: Strip unwanted markup, non-ASCII noise, and normalize spaces/newlines.
+    text = re.sub(r'<[^>]+>', ' ', text)  # Remove HTML tags
+    text = re.sub(r'http\S+|www\.\S+', ' ', text)  # Remove URLs
+    text = re.sub(r'[^\x00-\x7F]+', ' ', text)  # Remove non-ASCII characters
+    text = re.sub(r'\s+', ' ', text).strip()  # Collapse multiple whitespace into single space
+    return text
     raise NotImplementedError("Implement this method")
 
 
@@ -40,6 +45,17 @@ def quality_filter(
         bool: True if the document meets quality criteria, False otherwise.
     """
     # TODO: Check word count thresholds and measure capitalization and special-character ratios.
+    words = text.split()
+    if len(words) < min_words:
+        return False
+    caps = sum(1 for w in words if len(w) > 1 and w.isupper())
+    if caps / len(words) > max_ratio_caps:
+        return False
+    chars = [c for c in text if not c.isalnum()]
+    if not chars:
+        return False
+    special = sum(1 for c in chars if not c.isspace())  
+    return special / len(chars) <= max_ratio_special
     raise NotImplementedError("Implement this method")
 
 
