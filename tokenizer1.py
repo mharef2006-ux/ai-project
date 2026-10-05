@@ -1,6 +1,8 @@
 from collections import Counter
 from typing import List, Dict, Tuple, Any, Optional
 
+from django.contrib.auth import tokens
+
 
 class CharTokenizer:
     """A simple character-level tokenizer mapping ASCII/Unicode characters to integer values."""
@@ -16,10 +18,7 @@ class CharTokenizer:
         """
         # TODO: Map each character in the string to its integer character code representation
         self.text = text
-        self.code_char_list = []
-        for char in text:
-            self.code_char_list.append(ord(char))
-        return self.code_char_list
+        return [ord(char) for char in self.text]
     
         raise NotImplementedError("Implement this method")
 
@@ -33,9 +32,8 @@ class CharTokenizer:
             str: Decoded text string.
         """
         # TODO: Map each integer code back to its corresponding character and combine them
-        self.tokens = tokens
-        self.decoded_text = ''.join(chr(token) for token in self.tokens)
-        return self.decoded_tex
+        return ''.join(chr(token) for token in tokens)
+
     
         raise NotImplementedError("Implement this method")
 
@@ -59,8 +57,7 @@ class BPETokenizer:
             Counter: Mapping of (token_a, token_b) tuples to their occurrence counts.
         """
         # TODO: Count frequency of adjacent pairs across the token sequence
-        pair_counts = Counter((tokens[i], tokens[i + 1]) for i in range(len(tokens) - 1))
-        return pair_counts
+        return Counter(zip(tokens, tokens[1:]))
         raise NotImplementedError("Implement this method")
 
     def _merge_pair(
@@ -77,9 +74,10 @@ class BPETokenizer:
         """
         # TODO: Iterate through sequence and substitute target pair occurrences with new token without overlapping
         merged_tokens = []
+        n = len(tokens)
         i = 0
-        while i < len(tokens):
-            if i < len(tokens) - 1 and (tokens[i], tokens[i + 1]) == pair:
+        while i < n:
+            if i < n - 1 and tokens[i] == pair[0] and tokens[i + 1] == pair[1]:
                 merged_tokens.append(new_token)
                 i += 2  # Skip the next token since it's part of the merged pair
             else:
@@ -100,7 +98,8 @@ class BPETokenizer:
             BPETokenizer: Self instance after training.
         """
         # TODO: Initialize 256 base byte tokens in vocab, compute pair frequencies, and iteratively merge top pair
-        
+        self.vocab = {i: bytes([i]) for i in range(256)}
+        self.merges = {}
         tokens = list(text.encode("utf-8"))
         for i in range(num_merges):
             pair=self._get_pairs(tokens)
@@ -125,17 +124,12 @@ class BPETokenizer:
         """
         # TODO: Convert text into raw UTF-8 bytes and iteratively apply learned merge rules in order
         tokens = list(text.encode("utf-8"))
-        while True:
+        while len(tokens) > 1:
             pairs = self._get_pairs(tokens)
-            best_pair = None
-            new_token = None
-            for pair , token_id in self.merges.items():
-                if pair in pairs:
-                    best_pair = pair
-                    new_token = token_id
-                    break
-            if best_pair is None:
+            best_pair = min(pairs, key=lambda p: self.merges.get(p, float('inf')))
+            if best_pair not in self.merges:
                 break
+            new_token = self.merges[best_pair]
             tokens = self._merge_pair(tokens,best_pair,new_token)
         return tokens
         raise NotImplementedError("Implement this method")
@@ -150,12 +144,7 @@ class BPETokenizer:
             str: Reconstructed text string.
         """
         # TODO: Lookup byte sequences for tokens, concatenate them, and decode UTF-8 bytes into text
-        byte_data = b""
-        for token_id in tokens:
-            if token_id in self.vocab:
-                byte_data += self.vocab[token_id]
-            else:
-                byte_data += bytes([token_id])  # Fallback for unknown tokens
+        byte_data = b"".join(self.vocab[token] for token in tokens if token in self.vocab)
         return byte_data.decode("utf-8", errors="replace")
     
         raise NotImplementedError("Implement this method")
@@ -204,7 +193,8 @@ def compression_ratio(tokenizer: Any, text: str) -> float:
     # TODO: Calculate encoded token count relative to raw UTF-8 byte length, returning 0.0 for empty input
     original_bytes = len(text.encode("utf-8"))
     tokens = tokenizer.encode(text)
-    
+    if original_bytes == 0:
+        return 0.0
     ratio = len(tokens) / original_bytes if original_bytes > 0 else 0.0
     return ratio
     raise NotImplementedError("Implement this method")
@@ -226,6 +216,7 @@ def vocabulary_stats(tokenizer: Any, texts: List[str]) -> None:
     total_words = 0
     for text in texts:
         tokens = tokenizer.encode(text)
+        token_count.update(tokens)
         total_tokens += len(tokens)
         total_words += len(text.split())
         avg_token_per_word = (total_tokens / total_words) if total_words > 0 else 0.0
@@ -241,6 +232,7 @@ def vocabulary_stats(tokenizer: Any, texts: List[str]) -> None:
     for token_id, count in token_count.most_common(5):
         token = tokenizer.token_to_str(token_id)
         print(f"  Token :{token_id} : {token!r} -> Count: {count}")
+    
     raise NotImplementedError("Implement this method")
 
 

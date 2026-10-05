@@ -244,7 +244,7 @@ def causal_mask(seq_len, dtype=torch.float32, device=None):
 
 class MiniGPT(nn.Module):
     def __init__(self, vocab_size=50257, embed_dim=768, num_heads=12,
-                 num_layers=12, max_seq_len=1024, ff_dim=3072):
+                num_layers=12, max_seq_len=1024, ff_dim=3072):
         """
         Full MiniGPT causal language model.
 
@@ -352,7 +352,7 @@ def generate(model, prompt_tokens, max_new_tokens=100, temperature=0.8):
 
 
 def train_mini_gpt(text, vocab_size=256, embed_dim=128, num_heads=4,
-                   num_layers=4, seq_len=64, num_steps=1500, lr=3e-4, batch_size=4):
+                    num_layers=4, seq_len=64, num_steps=1500, lr=3e-4, batch_size=4):
     """
     Runs an end-to-end training loop for MiniGPT on raw text.
 
