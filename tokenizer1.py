@@ -232,8 +232,7 @@ def vocabulary_stats(tokenizer: Any, texts: List[str]) -> None:
     for token_id, count in token_count.most_common(5):
         token = tokenizer.token_to_str(token_id)
         print(f"  Token :{token_id} : {token!r} -> Count: {count}")
-    
-    raise NotImplementedError("Implement this method")
+
 
 
 # [KEEP_IMPLEMENTATION]
