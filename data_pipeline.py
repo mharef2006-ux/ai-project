@@ -71,6 +71,13 @@ def get_shingles(text: str, k: int = 5) -> Set[str]:
         Set[str]: Unique set of k-word shingles.
     """
     # TODO: Lowercase, tokenize into words, and construct word n-gram shingles.
+    words = text.lower().split()
+    shingles = set()
+    for i in range(len(words) - k + 1):
+        shingle = ' '.join(words[i:i + k])
+        shingles.add(shingle)
+    return shingles
+
     raise NotImplementedError("Implement this method")
 
 
@@ -86,6 +93,16 @@ def minhash_signature(shingles: Set[str], num_hashes: int = 128) -> List[int]:
         List[int]: MinHash signature list of length (num_hashes,).
     """
     # TODO: Generate hash permutations for each seed and compute the minimum hash value per seed.
+    signature = []
+    for seed in range(num_hashes):
+        min_hash = float('inf')
+        for shingle in shingles:
+            hash_value = hash((shingle + str(seed)))  # Simple hash with seed
+            if hash_value < min_hash:
+                min_hash = hash_value
+        signature.append(min_hash)
+    return signature
+
     raise NotImplementedError("Implement this method")
 
 
@@ -101,6 +118,16 @@ def lsh_buckets(signature: List[int], bands: int = 16) -> List[Tuple[int, str]]:
         List[Tuple[int, str]]: List of (band_id, bucket_hash) tuples of length (bands,).
     """
     # TODO: Slice signature into bands, hash each band chunk, and map to bucket identifiers.
+    rows_per_band = len(signature) // bands
+    buckets = []
+    for band_id in range(bands):
+        start = band_id * rows_per_band
+        end = start + rows_per_band
+        band = tuple(signature[start:end])
+        band_hash = str(hash(band))  # Simple hash for the band
+        buckets.append((band_id, band_hash))
+    return buckets
+
     raise NotImplementedError("Implement this method")
 
 
@@ -124,6 +151,37 @@ def deduplicate(
     """
     # TODO: Build MinHash signatures and map documents into LSH band buckets.
     # TODO: Collect candidate pairs from shared buckets, verify Jaccard similarity, and prune duplicates.
+    signatures = []
+    shingles_list = []
+    for doc in documents:
+        shingles = get_shingles(doc)
+        shingles_list.append(shingles)
+        signature = minhash_signature(shingles, num_hashes)
+        signatures.append(signature)
+    buckets = {}
+    for idx, signature in enumerate(signatures):
+        for band_id, bucket_hash in lsh_buckets(signature, bands):
+            key = (band_id, bucket_hash)
+            if key not in buckets:
+                buckets[key] = []
+            buckets[key].append(idx)
+    candidate_pairs = set()
+    for bucket_docs in buckets.values():
+        for i in range(len(bucket_docs)):
+            for j in range(i + 1, len(bucket_docs)):
+                candidate_pairs.add((bucket_docs[i], bucket_docs[j]))
+    removed = set()
+    for i, j in candidate_pairs:
+        if i in removed or j in removed:
+            continue
+        intersection = len(shingles_list[i] & shingles_list[j])
+        union = len(shingles_list[i] | shingles_list[j])
+        similarity = intersection / union if union else 1.0
+        if similarity >= threshold:
+            removed.add(j)
+    deduped_docs = [doc for idx, doc in enumerate(documents) if idx not in removed]
+    return deduped_docs, len(removed)
+
     raise NotImplementedError("Implement this method")
 
 
@@ -301,6 +359,42 @@ def compute_statistics(
     """
     # TODO: Measure total corpus dimensions, compute character-to-token compression, and track document lengths.
     # TODO: Calculate top token frequencies, sequence padding efficiency ratios, and vocabulary utilization.
+    total_documents = len(documents)
+    total_characters = sum(len(doc) for doc in documents)
+    total_tokens = len(token_ids)
+    
+    document_lengths = [len(doc) for doc in documents]
+    
+    compression_ratio = total_characters / total_tokens if total_tokens > 0 else 0
+    
+    token_frequencies = Counter(token_ids)
+    
+    top_tokens = token_frequencies.most_common(10)
+    # padding statistics 
+    if sequences:
+        max_length = max(len(seq) for seq in sequences)
+        total_padded_tokens = len(sequences) * max_length
+        actual_tokens = sum(len(seq) for seq in sequences)
+        padding_efficiency = actual_tokens / total_padded_tokens if total_padded_tokens > 0 else 0
+    else:
+        padding_efficiency = 0
+        max_length = 0
+        unique_tokens = len(set(token_ids))
+        
+        vocabulary_utilization = unique_tokens / tokenizer_vocab_size if tokenizer_vocab_size > 0 else 0
+        
+    return {
+        "num_documents": total_documents,
+        "total_characters": total_characters,
+        "total_tokens": total_tokens,
+        "compression_ratio": compression_ratio,
+        "document_lengths": document_lengths,
+        "top_tokens": top_tokens,
+        "padding_efficiency": padding_efficiency,
+        "max_sequence_length": max_length,
+        "unique_tokens": unique_tokens,
+        "vocabulary_utilization": vocabulary_utilization
+    }
     raise NotImplementedError("Implement this method")
 
 
