@@ -23,7 +23,7 @@ def clean_text(text: str) -> str:
     text = re.sub(r'[^\x00-\x7F]+', ' ', text)  # Remove non-ASCII characters
     text = re.sub(r'\s+', ' ', text).strip()  # Collapse multiple whitespace into single space
     return text
-    raise NotImplementedError("Implement this method")
+
 
 
 def quality_filter(
@@ -56,7 +56,7 @@ def quality_filter(
         return False
     special = sum(1 for c in chars if not c.isspace())  
     return special / len(chars) <= max_ratio_special
-    raise NotImplementedError("Implement this method")
+
 
 
 def get_shingles(text: str, k: int = 5) -> Set[str]:
@@ -78,9 +78,6 @@ def get_shingles(text: str, k: int = 5) -> Set[str]:
         shingles.add(shingle)
     return shingles
 
-    raise NotImplementedError("Implement this method")
-
-
 def minhash_signature(shingles: Set[str], num_hashes: int = 128) -> List[int]:
     """
     Computes MinHash signature for a set of shingles using hash function permutations.
@@ -98,10 +95,9 @@ def minhash_signature(shingles: Set[str], num_hashes: int = 128) -> List[int]:
         return [0] * num_hashes  # Return a default signature for empty shingle sets
     signature = []
     for seed in range(num_hashes):
-        signature.append(min(int.from_bytes(hashlib.md5(f"{shingle}{seed}".encode()), 'big') for shingle in shingles))
+        signature.append(min(int.from_bytes(hashlib.md5(f"{shingle}{seed}".encode()).digest(), 'big') for shingle in shingles))
     return signature
 
-    raise NotImplementedError("Implement this method")
 
 
 def lsh_buckets(signature: List[int], bands: int = 16) -> List[Tuple[int, str]]:
@@ -126,7 +122,7 @@ def lsh_buckets(signature: List[int], bands: int = 16) -> List[Tuple[int, str]]:
         buckets.append((band_id, band_hash))
     return buckets
 
-    raise NotImplementedError("Implement this method")
+
 
 
 def deduplicate(
@@ -179,8 +175,6 @@ def deduplicate(
             removed.add(j)
     deduped_docs = [doc for idx, doc in enumerate(documents) if idx not in removed]
     return deduped_docs, len(removed)
-
-    raise NotImplementedError("Implement this method")
 
 
 class SimpleTokenizer:
@@ -268,7 +262,6 @@ class SimpleTokenizer:
                     i += 1
             ids = new_ids
         return ids 
-        raise NotImplementedError("Implement this method")
 
     def decode(self, ids: List[int]) -> str:
         """
@@ -294,8 +287,6 @@ class SimpleTokenizer:
         """
         # TODO: Return total number of active entries in vocabulary.
         return len(self.vocab)
-        raise NotImplementedError("Implement this method")
-
 
 def tokenize_corpus(documents: List[str], tokenizer: SimpleTokenizer) -> List[int]:
     """
@@ -314,7 +305,6 @@ def tokenize_corpus(documents: List[str], tokenizer: SimpleTokenizer) -> List[in
         tokens.extend(tokenizer.encode(doc))
         tokens.append(tokenizer.eos_id)
     return tokens
-    raise NotImplementedError("Implement this method")
 
 
 def pack_sequences(
@@ -343,9 +333,6 @@ def pack_sequences(
         sequences.append(chunk + [pad_id] * pad_len)
         masks.append([1] * len(chunk) + [0] * pad_len)
     return sequences, masks
-
-    raise NotImplementedError("Implement this method")
-
 
 class PreTrainingDataLoader:
     """
@@ -381,7 +368,6 @@ class PreTrainingDataLoader:
         """
         # TODO: Compute total batch count accounting for ceiling division of sequence length.
         return (len(self.sequences) + self.batch_size - 1) // self.batch_size
-        raise NotImplementedError("Implement this method")
 
     def __iter__(self) -> Generator[Tuple[List[List[int]], List[List[int]]], None, None]:
         """
@@ -432,16 +418,17 @@ def compute_statistics(
     unique_tokens = len(token_frequencies)
     total_slots = sum(len(seq) for seq in sequences)
     return {
-        "num_documents": total_documents,
+        "total_documents": total_documents,
         "total_characters": total_characters,
         "total_tokens": total_tokens,
         "compression_ratio": compression_ratio,
         "document_lengths": document_lengths,
+        "num_sequences": len(sequences),
         "top_tokens": token_frequencies.most_common(10),
         "padding_efficiency": 1 - (total_tokens / total_slots) if total_slots > 0 else 0,
         "max_sequence_length": len(sequences[0]) if sequences else 0,
         "unique_tokens": unique_tokens,
-        "vocabulary_utilization": unique_tokens / tokenizer_vocab_size if tokenizer_vocab_size > 0 else 0,
+        "vocab_utilization": unique_tokens / tokenizer_vocab_size if tokenizer_vocab_size > 0 else 0,
         "avg_doc_length_words": sum(word_counts) / total_documents if total_documents > 0 else 0,
         "sequence_utilization": min(1.0, total_tokens / total_slots) if total_slots > 0 else 0
     }
