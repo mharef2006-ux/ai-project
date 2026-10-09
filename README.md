@@ -119,3 +119,8 @@ Some features require additional Python packages, such as "torch", "regex", and 
 These projects are part of my learning journey in NLP and AI Engineering. They provide practical experience with text processing, tokenization, data preparation, and the internal components of GPT-style language models.
 
 This repository will be updated as I continue learning and improving the implementations.
+## Credits
+This project was developed as a **daneshkar course project** by:
+- [mharef2006](https://github.com/mharef2006-ux)
+- [sorenakhazaee](https://github.com/sorenalhazaee)
+the original exercise structure (function signatures, docstrings, and starter code) was provided by the course instructors. the implementations were written by us.
