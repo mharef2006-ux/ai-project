@@ -1,7 +1,6 @@
 from collections import Counter
 from typing import List, Dict, Tuple, Any, Optional
 
-from django.contrib.auth import tokens
 
 
 class CharTokenizer:
@@ -19,8 +18,7 @@ class CharTokenizer:
         # TODO: Map each character in the string to its integer character code representation
         self.text = text
         return [ord(char) for char in self.text]
-    
-        raise NotImplementedError("Implement this method")
+
 
     def decode(self, tokens: List[int]) -> str:
         """Convert a list of integer character codes back into a string.
@@ -33,9 +31,6 @@ class CharTokenizer:
         """
         # TODO: Map each integer code back to its corresponding character and combine them
         return ''.join(chr(token) for token in tokens)
-
-    
-        raise NotImplementedError("Implement this method")
 
 
 class BPETokenizer:
@@ -58,7 +53,6 @@ class BPETokenizer:
         """
         # TODO: Count frequency of adjacent pairs across the token sequence
         return Counter(zip(tokens, tokens[1:]))
-        raise NotImplementedError("Implement this method")
 
     def _merge_pair(
         self, tokens: List[int], pair: Tuple[int, int], new_token: int) -> List[int]:
@@ -84,8 +78,7 @@ class BPETokenizer:
                 merged_tokens.append(tokens[i])
                 i += 1
         return merged_tokens
-    
-        raise NotImplementedError("Implement this method")
+
 
     def train(self, text: str, num_merges: int) -> "BPETokenizer":
         """Train BPE vocabulary starting from 256 base bytes and learn merge rules from text.
@@ -111,7 +104,6 @@ class BPETokenizer:
             self.merges[pair] = new_token
             self.vocab[new_token] = (self.vocab[pair[0]] + self.vocab[pair[1]]) if pair[0] in self.vocab and pair[1] in self.vocab else bytes(pair)
         return self
-        raise NotImplementedError("Implement this method")
 
     def encode(self, text: str) -> List[int]:
         """Encode string text into BPE token IDs using learned merge rules.
@@ -132,7 +124,6 @@ class BPETokenizer:
             new_token = self.merges[best_pair]
             tokens = self._merge_pair(tokens,best_pair,new_token)
         return tokens
-        raise NotImplementedError("Implement this method")
 
     def decode(self, tokens: List[int]) -> str:
         """Decode a list of BPE token IDs back into a text string.
@@ -146,8 +137,7 @@ class BPETokenizer:
         # TODO: Lookup byte sequences for tokens, concatenate them, and decode UTF-8 bytes into text
         byte_data = b"".join(self.vocab[token] for token in tokens if token in self.vocab)
         return byte_data.decode("utf-8", errors="replace")
-    
-        raise NotImplementedError("Implement this method")
+
 
     def vocab_size(self) -> int:
         """Get current vocabulary size.
@@ -158,8 +148,7 @@ class BPETokenizer:
         # TODO: Return total number of items in vocabulary
         
         return len(self.vocab)
-    
-        raise NotImplementedError("Implement this method")
+
 
     def token_to_str(self, token_id: int) -> str:
         """Convert a single token ID into its string representation for visualization.
@@ -175,7 +164,6 @@ class BPETokenizer:
             return self.vocab[token_id].decode("utf-8", errors="replace")
         else:
             return f"<UNK:{token_id}>"
-        raise NotImplementedError("Implement this method")
 
 
 def compression_ratio(tokenizer: Any, text: str) -> float:
@@ -197,7 +185,6 @@ def compression_ratio(tokenizer: Any, text: str) -> float:
         return 0.0
     ratio = len(tokens) / original_bytes if original_bytes > 0 else 0.0
     return ratio
-    raise NotImplementedError("Implement this method")
 
 
 def vocabulary_stats(tokenizer: Any, texts: List[str]) -> None:
@@ -232,8 +219,7 @@ def vocabulary_stats(tokenizer: Any, texts: List[str]) -> None:
     for token_id, count in token_count.most_common(5):
         token = tokenizer.token_to_str(token_id)
         print(f"  Token :{token_id} : {token!r} -> Count: {count}")
-    
-    raise NotImplementedError("Implement this method")
+
 
 
 # [KEEP_IMPLEMENTATION]

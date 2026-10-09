@@ -27,6 +27,9 @@ import torch
 import torch.nn as nn
 
 
+import csv
+from data_pipeline import SimpleTokenizer, clean_text
+
 class Embedding(nn.Module):
     def __init__(self, vocab_size, embed_dim, max_seq_len):
         """
@@ -60,8 +63,21 @@ class Embedding(nn.Module):
                 positions 0..seq_len-1, broadcast across the batch.
                 Shape: (batch_size, seq_len, embed_dim)
         """
-        raise NotImplementedError("Implement this method")
+        # دریافت ابعاد ورودی
+        batch_size, seq_len = token_ids.shape
 
+        # ساخت شناسه موقعیت‌ها روی همان دستگاه ورودی
+        positions = torch.arange(
+            seq_len,
+            device=token_ids.device
+        )
+
+        # محاسبه تعبیه توکن‌ها و موقعیت‌ها
+        token_embeddings = self.token_embed(token_ids)
+        position_embeddings = self.pos_embed(positions)
+
+        # ترکیب اطلاعات توکن و موقعیت
+        return token_embeddings + position_embeddings.unsqueeze(0)
 
 class LayerNorm(nn.Module):
     def __init__(self, dim, eps=1e-5):
@@ -95,7 +111,17 @@ class LayerNorm(nn.Module):
                 The mean and the biased variance are computed over the last axis only.
                 Shape: (..., dim)
         """
-        raise NotImplementedError("Implement this method")
+
+        # محاسبه میانگین در آخرین بُعد
+        mean = x.mean(dim=-1, keepdim=True)
+
+        # محاسبه واریانس با تقسیم بر تعداد عناصر
+        variance = ((x - mean) ** 2).mean(dim=-1, keepdim=True)
+
+        # نرمال‌سازی و اعمال پارامترهای قابل‌آموزش
+        normalized = (x - mean) / torch.sqrt(variance + self.eps)
+
+        return self.gamma * normalized + self.beta
 
 
 class MultiHeadAttention(nn.Module):
@@ -145,7 +171,49 @@ class MultiHeadAttention(nn.Module):
                 through W_out.
                 Shape: (batch_size, seq_len, embed_dim)
         """
-        raise NotImplementedError("Implement this method")
+
+        # دریافت ابعاد ورودی
+        batch_size, seq_len, embed_dim = x.shape
+
+        # ساخت Query، Key و Value و جداسازی سرهای توجه
+        q = self.W_q(x).reshape(
+            batch_size, seq_len, self.num_heads, self.head_dim
+        ).transpose(1, 2)
+
+        k = self.W_k(x).reshape(
+            batch_size, seq_len, self.num_heads, self.head_dim
+        ).transpose(1, 2)
+
+        v = self.W_v(x).reshape(
+            batch_size, seq_len, self.num_heads, self.head_dim
+        ).transpose(1, 2)
+
+        # محاسبه امتیاز توجه با مقیاس مناسب
+        scores = torch.matmul(q, k.transpose(-2, -1))
+        scores = scores / (self.head_dim ** 0.5)
+
+        # اعمال ماسک، در صورت وجود
+        if mask is not None:
+            mask = mask.to(device=scores.device, dtype=scores.dtype)
+            scores = scores + mask
+
+        # محاسبه دستی Softmax با پایداری عددی
+        scores = scores - scores.max(dim=-1, keepdim=True).values
+        exp_scores = torch.exp(scores)
+        attention_weights = exp_scores / exp_scores.sum(
+            dim=-1, keepdim=True
+        )
+
+        # ترکیب اطلاعات Value بر اساس وزن‌های توجه
+        context = torch.matmul(attention_weights, v)
+
+        # ادغام سرهای توجه
+        context = context.transpose(1, 2).contiguous().reshape(
+            batch_size, seq_len, embed_dim
+        )
+
+        # نگاشت نهایی خروجی
+        return self.W_out(context)
 
 
 class FeedForward(nn.Module):
@@ -180,7 +248,15 @@ class FeedForward(nn.Module):
             torch.Tensor: Transformed features, projected up to ff_dim and back down.
                 Shape: (..., embed_dim)
         """
-        raise NotImplementedError("Implement this method")
+
+        # گسترش ویژگی‌های ورودی
+        hidden = self.fc1(x)
+
+        # اعمال تابع فعال‌سازی غیرخطی
+        hidden = torch.relu(hidden)
+
+        # بازگرداندن ویژگی‌ها به بُعد اصلی
+        return self.fc2(hidden)
 
 
 class TransformerBlock(nn.Module):
@@ -220,7 +296,26 @@ class TransformerBlock(nn.Module):
             torch.Tensor: Output representation with the same shape as the input.
                 Shape: (batch_size, seq_len, embed_dim)
         """
-        raise NotImplementedError("Implement this method")
+
+        # ذخیره ورودی برای اتصال باقی‌مانده اول
+        residual = x
+
+        # نرمال‌سازی پیش از محاسبه توجه
+        normalized = self.ln1(x)
+
+        # محاسبه توجه و افزودن اتصال باقی‌مانده
+        x = residual + self.attn(normalized, mask=mask)
+
+        # ذخیره ورودی برای اتصال باقی‌مانده دوم
+        residual = x
+
+        # نرمال‌سازی پیش از شبکه پیش‌خور
+        normalized = self.ln2(x)
+
+        # پردازش پیش‌خور و افزودن اتصال باقی‌مانده
+        x = residual + self.ffn(normalized)
+
+        return x
 
 
 def causal_mask(seq_len, dtype=torch.float32, device=None):
@@ -239,8 +334,30 @@ def causal_mask(seq_len, dtype=torch.float32, device=None):
             the mask stays valid in float64.
             Shape: (seq_len, seq_len)
     """
-    raise NotImplementedError("Implement this function")
+    # ساخت ماتریس اولیه با مقدار صفر
+    mask = torch.zeros(
+        (seq_len, seq_len),
+        dtype=dtype,
+        device=device,
+    )
 
+    # شناسایی موقعیت‌هایی که در آینده قرار دارند
+    future_positions = torch.triu(
+        torch.ones(
+            (seq_len, seq_len),
+            dtype=torch.bool,
+            device=device,
+        ),
+        diagonal=1,
+    )
+
+    # مسدود کردن دسترسی به توکن‌های آینده
+    mask = mask.masked_fill(
+        future_positions,
+        torch.finfo(dtype).min,
+    )
+
+    return mask
 
 class MiniGPT(nn.Module):
     def __init__(self, vocab_size=50257, embed_dim=768, num_heads=12,
@@ -289,7 +406,40 @@ class MiniGPT(nn.Module):
                 `seq_len` must prevent every position from attending to later positions.
                 Shape: (batch_size, seq_len, vocab_size)
         """
-        raise NotImplementedError("Implement this method")
+
+        # بررسی شکل ورودی و محدودیت طول دنباله
+        batch_size, seq_len = token_ids.shape
+
+        if seq_len > self.max_seq_len:
+            raise ValueError(
+                "طول دنباله از حداکثر طول پشتیبانی‌شده بیشتر است."
+            )
+
+        # ساخت ماسک علّی با نوع داده و دستگاه ورودی
+        mask = causal_mask(
+            seq_len,
+            dtype=self.embedding.token_embed.weight.dtype,
+            device=token_ids.device,
+        )
+
+        # تبدیل شناسه‌های توکن به بردارهای تعبیه
+        x = self.embedding(token_ids)
+
+        # عبور از تمام بلوک‌های ترنسفورمر
+        for block in self.blocks:
+            x = block(x, mask=mask)
+
+        # نرمال‌سازی نهایی نمایش توکن‌ها
+        x = self.ln_f(x)
+
+        # محاسبه امتیاز واژگان با استفاده مجدد از وزن‌های تعبیه
+        logits = torch.matmul(
+            x,
+            self.embedding.token_embed.weight.transpose(0, 1),
+        )
+
+        return logits
+
 
     def count_parameters(self):
         """
@@ -304,8 +454,41 @@ class MiniGPT(nn.Module):
         Returns:
             int: Grand total parameter count across all components.
         """
-        raise NotImplementedError("Implement this method")
 
+        # تعداد پارامترهای جدول تعبیه توکن‌ها
+        token_embedding_params = self.vocab_size * self.embed_dim
+
+        # تعداد پارامترهای جدول تعبیه موقعیت‌ها
+        position_embedding_params = self.max_seq_len * self.embed_dim
+
+        # تعداد پارامترهای یک بلوک ترنسفورمر
+        attention_params = 4 * self.embed_dim * self.embed_dim
+
+        feed_forward_params = (
+                self.embed_dim * self.blocks[0].ffn.fc1.out_features
+                + self.blocks[0].ffn.fc1.out_features
+                + self.blocks[0].ffn.fc2.in_features
+                * self.blocks[0].ffn.fc2.out_features
+                + self.blocks[0].ffn.fc2.out_features
+        )
+
+        layer_norm_params = 4 * self.embed_dim
+
+        block_params = (
+                attention_params
+                + feed_forward_params
+                + layer_norm_params
+        )
+
+        # جمع پارامترهای تمام بخش‌ها
+        total_params = (
+                token_embedding_params
+                + position_embedding_params
+                + len(self.blocks) * block_params
+                + 2 * self.embed_dim
+        )
+
+        return total_params
 
 def cross_entropy_loss(logits, targets):
     """
@@ -326,8 +509,36 @@ def cross_entropy_loss(logits, targets):
             batch_size * seq_len positions.
             Shape: ()
     """
-    raise NotImplementedError("Implement this function")
 
+    # بررسی ابعاد ورودی‌ها
+    batch_size, seq_len, vocab_size = logits.shape
+
+    # تبدیل امتیازها به شکل دوبعدی برای محاسبه روی همه موقعیت‌ها
+    logits = logits.reshape(batch_size * seq_len, vocab_size)
+    targets = targets.reshape(batch_size * seq_len)
+
+    # پایدارسازی عددی با کم کردن بیشترین امتیاز هر موقعیت
+    shifted_logits = logits - logits.max(dim=-1, keepdim=True).values
+
+    # محاسبه مجموع نمایی امتیازها
+    exp_logits = torch.exp(shifted_logits)
+    log_sum_exp = torch.log(
+        exp_logits.sum(dim=-1, keepdim=True)
+    )
+
+    # محاسبه log-softmax به‌صورت دستی
+    log_probs = shifted_logits - log_sum_exp
+
+    # انتخاب log احتمال توکن هدف در هر موقعیت
+    target_log_probs = log_probs.gather(
+        dim=-1,
+        index=targets.unsqueeze(-1),
+    )
+
+    # میانگین منفی log احتمال‌ها به‌عنوان خطای نهایی
+    loss = -target_log_probs.mean()
+
+    return loss
 
 def generate(model, prompt_tokens, max_new_tokens=100, temperature=0.8):
     """
@@ -348,11 +559,62 @@ def generate(model, prompt_tokens, max_new_tokens=100, temperature=0.8):
             len(prompt_tokens) + max_new_tokens. The context fed to the model at each
             step must be truncated to the model's maximum sequence length.
     """
-    raise NotImplementedError("Implement this function")
 
+    # بررسی ورودی‌ها
+    if max_new_tokens < 0:
+        raise ValueError("تعداد توکن‌های جدید نمی‌تواند منفی باشد.")
+
+    if temperature <= 0:
+        raise ValueError("دما باید بزرگ‌تر از صفر باشد.")
+
+    if len(prompt_tokens) == 0:
+        raise ValueError("پرامپت اولیه نباید خالی باشد.")
+
+    if min(prompt_tokens) < 0 or max(prompt_tokens) >= model.vocab_size:
+        raise ValueError("شناسه‌ای خارج از محدوده واژگان ورودی وجود دارد.")
+
+    # نگهداری پرامپت و توکن‌های تولیدشده
+    generated = list(prompt_tokens)
+
+    # تولید بدون محاسبه گرادیان
+    with torch.no_grad():
+        for _ in range(max_new_tokens):
+            # محدود کردن زمینه به حداکثر طول مدل
+            context = generated[-model.max_seq_len:]
+
+            # تبدیل زمینه به تانسور روی دستگاه مدل
+            token_ids = torch.tensor(
+                [context],
+                dtype=torch.long,
+                device=model.embedding.token_embed.weight.device,
+            )
+
+            # محاسبه امتیازهای مدل و انتخاب آخرین موقعیت
+            logits = model(token_ids)
+            next_token_logits = logits[0, -1, :]
+
+            # اعمال دما
+            next_token_logits = next_token_logits / temperature
+
+            # محاسبه دستی احتمال‌ها با پایداری عددی
+            next_token_logits = (
+                    next_token_logits
+                    - next_token_logits.max(dim=-1, keepdim=True).values
+            )
+            probabilities = torch.exp(next_token_logits)
+            probabilities = probabilities / probabilities.sum()
+
+            # نمونه‌گیری از توزیع احتمال
+            next_token = torch.multinomial(probabilities, num_samples=1)
+
+            # افزودن توکن جدید به دنباله
+            generated.append(next_token.item())
+
+    return generated
 
 def train_mini_gpt(text, vocab_size=256, embed_dim=128, num_heads=4,
-                   num_layers=4, seq_len=64, num_steps=1500, lr=3e-4, batch_size=4):
+                   num_layers=4, seq_len=64, num_steps=1500,
+                   lr=3e-4, batch_size=4, tokenizer=None):
     """
     Runs an end-to-end training loop for MiniGPT on raw text.
 
@@ -384,8 +646,243 @@ def train_mini_gpt(text, vocab_size=256, embed_dim=128, num_heads=4,
     Returns:
         MiniGPT: The trained model instance, left in eval mode.
     """
-    raise NotImplementedError("Implement this function")
 
+    # بررسی معتبر بودن تنظیمات آموزش
+    if vocab_size < 256:
+        raise ValueError("اندازه واژگان باید حداقل ۲۵۶ باشد.")
+
+    if seq_len < 1:
+        raise ValueError("طول دنباله باید حداقل یک باشد.")
+
+    if batch_size < 1:
+        raise ValueError("اندازه دسته آموزشی باید حداقل یک باشد.")
+
+    if num_steps < 0:
+        raise ValueError("تعداد مراحل آموزش نمی‌تواند منفی باشد.")
+
+    if lr <= 0:
+        raise ValueError("نرخ یادگیری باید بزرگ‌تر از صفر باشد.")
+
+    # تبدیل متن به بایت‌های UTF-8 و شناسه‌های عددی
+
+    # تبدیل متن به شناسه‌های عددی با توکن‌ساز مناسب
+    if tokenizer is not None:
+        encoded_text = tokenizer.encode(text)
+
+        # هماهنگ کردن اندازه واژگان مدل با توکن‌ساز
+        tokenizer_vocab_size = tokenizer.vocab_size()
+
+        if vocab_size != tokenizer_vocab_size:
+            vocab_size = tokenizer_vocab_size
+
+        data = torch.tensor(encoded_text, dtype=torch.long)
+    else:
+        # حفظ روش قبلی برای متن‌های بدون توکن‌ساز
+        encoded_text = text.encode("utf-8")
+        data = torch.tensor(list(encoded_text), dtype=torch.long)
+
+
+    # بررسی معتبر بودن شناسه‌های ورودی
+    if data.numel() == 0:
+        raise ValueError("متن آموزشی پس از توکن‌سازی خالی است.")
+
+    if data.min().item() < 0 or data.max().item() >= vocab_size:
+        raise ValueError(
+            "شناسه‌های داده آموزشی با اندازه واژگان مدل سازگار نیستند."
+        )
+
+    # اطمینان از کافی بودن داده برای ساخت پنجره‌های آموزشی
+    if data.numel() < seq_len + 1:
+        raise ValueError(
+            "متن آموزشی باید حداقل به اندازه طول دنباله به‌علاوه یک بایت باشد."
+        )
+
+    # ساخت مدل با تنظیمات درخواستی
+    model = MiniGPT(
+        vocab_size=vocab_size,
+        embed_dim=embed_dim,
+        num_heads=num_heads,
+        num_layers=num_layers,
+        max_seq_len=seq_len,
+        ff_dim=embed_dim * 4,
+    )
+
+    # انتخاب AdamW برای به‌روزرسانی وزن‌های مدل
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=lr,
+    )
+
+    # آماده‌سازی موقعیت‌های هر پنجره آموزشی
+    offsets = torch.arange(seq_len)
+
+    # قرار دادن مدل در حالت آموزش
+    model.train()
+
+    for step in range(num_steps):
+        # انتخاب تصادفی نقطه شروع پنجره‌های آموزشی
+        starts = torch.randint(
+            low=0,
+            high=data.numel() - seq_len,
+            size=(batch_size,),
+        )
+
+        # ساخت ورودی‌ها و پاسخ‌های صحیح با جابه‌جایی یک بایتی
+        positions = starts.unsqueeze(1) + offsets.unsqueeze(0)
+        inputs = data[positions]
+        targets = data[positions + 1]
+
+        # پاک کردن گرادیان‌های مرحله قبلی
+        optimizer.zero_grad()
+
+        # پیش‌بینی توکن‌ها و محاسبه خطا
+        logits = model(inputs)
+        loss = cross_entropy_loss(logits, targets)
+
+        # محاسبه گرادیان‌ها و به‌روزرسانی وزن‌ها
+        loss.backward()
+        optimizer.step()
+
+        # نمایش خطا هر ۲۰ مرحله
+        if (step + 1) % 20 == 0:
+            print(
+                f"مرحله {step + 1}/{num_steps} "
+                f"| خطا: {loss.item():.4f}"
+            )
+
+    # آماده‌سازی مدل برای ارزیابی یا تولید
+    model.eval()
+
+    return model
+
+
+
+def train_mini_gpt_from_pipeline(
+    documents,
+    tokenizer,
+    seq_len=64,
+    batch_size=4,
+    num_steps=200,
+    embed_dim=64,
+    num_heads=4,
+    num_layers=2,
+    lr=1e-3,
+):
+    """آموزش MiniGPT با خروجی واقعی پایپلاین داده."""
+
+    from data_pipeline import (
+        quality_filter,
+        deduplicate,
+        tokenize_corpus,
+        pack_sequences,
+        PreTrainingDataLoader,
+    )
+
+    # پاک‌سازی، فیلتر کیفیت و حذف اسناد تکراری
+    cleaned = [clean_text(doc) for doc in documents if doc.strip()]
+    filtered = [
+        doc for doc in cleaned
+        if quality_filter(
+            doc,
+            min_words=10,
+            max_ratio_caps=0.5,
+            max_ratio_special=0.3,
+        )
+    ]
+    deduplicated, removed_count = deduplicate(filtered)
+
+    if not deduplicated:
+        raise ValueError(
+            "هیچ سندی پس از پاک‌سازی و فیلتر کیفیت باقی نمانده است."
+        )
+
+    print(f"اسناد معتبر: {len(filtered)}")
+    print(f"اسناد تکراری حذف‌شده: {removed_count}")
+
+    # آموزش توکن‌ساز و تبدیل اسناد به شناسه‌ها
+    corpus = "\n".join(deduplicated)
+    tokenizer.train_bpe(corpus, num_merges=100)
+    token_ids = tokenize_corpus(deduplicated, tokenizer)
+
+    # ساخت دنباله‌هایی با یک توکن اضافه برای هدف بعدی
+    sequences, masks = pack_sequences(
+        token_ids, seq_len + 1, pad_id=tokenizer.pad_id
+    )
+
+    if not sequences:
+        raise ValueError("پایپلاین هیچ دنباله‌ای تولید نکرد.")
+
+    # ورودی و هدف را هم‌زمان می‌سازیم تا ارتباط آن‌ها حفظ شود
+    inputs = [seq[:-1] for seq in sequences]
+    targets = [seq[1:] for seq in sequences]
+    target_masks = [mask[1:] for mask in masks]
+
+    # هر ردیف ورودی، هدف و ماسک در یک ساختار مشترک نگهداری می‌شود
+    from random import Random
+    rng = Random(42)
+    aligned = list(zip(inputs, targets, target_masks))
+
+    vocab_size = tokenizer.vocab_size()
+    model = MiniGPT(
+        vocab_size=vocab_size,
+        embed_dim=embed_dim,
+        num_heads=num_heads,
+        num_layers=num_layers,
+        max_seq_len=seq_len,
+        ff_dim=embed_dim * 4,
+    )
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    model.train()
+
+    # آموزش دسته‌ای با حفظ هم‌ترازی ورودی‌ها و هدف‌ها
+    for step in range(num_steps):
+        rng.shuffle(aligned)
+        total_loss = 0.0
+        total_batches = 0
+
+        for start in range(0, len(aligned), batch_size):
+            batch = aligned[start:start + batch_size]
+
+            batch_inputs = torch.tensor(
+                [item[0] for item in batch], dtype=torch.long
+            )
+            batch_targets = torch.tensor(
+                [item[1] for item in batch], dtype=torch.long
+            )
+            batch_masks = torch.tensor(
+                [item[2] for item in batch], dtype=torch.bool
+            )
+
+            # فقط موقعیت‌های معتبر را در محاسبه خطا وارد می‌کنیم
+            valid = batch_masks & (batch_targets != tokenizer.pad_id)
+            if not valid.any():
+                continue
+
+            optimizer.zero_grad()
+            logits = model(batch_inputs)
+
+            # استفاده از تابع زیان دستی تعریف‌شده در همین فایل
+            loss = cross_entropy_loss(
+                logits[valid].unsqueeze(1),
+                batch_targets[valid].unsqueeze(1),
+            )
+
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+            total_batches += 1
+
+        if (step + 1) % 20 == 0:
+            average_loss = total_loss / max(total_batches, 1)
+            print(
+                f"مرحله {step + 1}/{num_steps} "
+                f"| خطا: {average_loss:.4f}"
+            )
+
+    model.eval()
+    return model
 
 def parameter_breakdown():
     """
@@ -449,28 +946,88 @@ def memory_estimate():
     print()
 
 
+
 if __name__ == "__main__":
     torch.manual_seed(42)
+
     parameter_breakdown()
     memory_estimate()
-    corpus = """The transformer architecture has revolutionized natural language processing.
-Attention mechanisms allow the model to focus on relevant parts of the input.
-Self-attention computes relationships between all pairs of positions in a sequence.
-Multi-head attention splits the representation into multiple subspaces.
-Each attention head can learn different types of relationships.
-The feedforward network provides nonlinear transformations at each position.
-Residual connections enable gradient flow through deep networks.
-Layer normalization stabilizes training by normalizing activations.
-Position embeddings give the model information about token ordering.
-The causal mask ensures autoregressive generation during training.
-Pre-training on large text corpora teaches the model general language understanding.
-Fine-tuning adapts the pre-trained model to specific downstream tasks."""
-    print("Training Mini GPT")
+
+    # خواندن اطلاعات واقعی فیلم‌ها از فایل CSV
+    csv_path = "tmdb_5000_movies.csv"
+    documents = []
+
+    with open(csv_path, "r", encoding="utf-8", newline="") as file:
+        reader = csv.DictReader(file)
+
+        for row in reader:
+            title = row.get("title", "")
+            tagline = row.get("tagline", "")
+            overview = row.get("overview", "")
+
+            text = clean_text(
+                f"Title: {title}. Tagline: {tagline}. "
+                f"Overview: {overview}"
+            )
+
+            if title.strip() and overview.strip() and len(text) >= 50:
+                documents.append(text)
+
+            # برای اجرای آزمایشی، حجم داده را محدود می‌کنیم.
+            if len(documents) >= 500:
+                break
+
+    if not documents:
+        raise RuntimeError("هیچ اطلاعات معتبری از فایل TMDB خوانده نشد.")
+
+    corpus = "\n".join(documents)
+
+    print(f"\nتعداد فیلم‌های آماده‌شده: {len(documents)}")
+    print("آموزش توکن‌ساز روی اطلاعات فیلم‌ها...")
+
+    tokenizer = SimpleTokenizer()
+
+    print("\nشروع آموزش MiniGPT با پایپلاین داده")
     print("=" * 65)
-    model = train_mini_gpt(corpus, num_steps=1500)
-    prompt = list("The transformer".encode("utf-8"))
-    print(f"\nPrompt: 'The transformer'")
-    print("Generating...")
-    output_tokens = generate(model, prompt, max_new_tokens=100, temperature=0.6)
-    generated_text = bytes(output_tokens).decode("utf-8", errors="replace")
-    print(f"Generated: {generated_text}")
+
+    model = train_mini_gpt_from_pipeline(
+        documents=documents,
+        tokenizer=tokenizer,
+        seq_len=64,
+        batch_size=4,
+        num_steps=40,
+        embed_dim=32,
+        num_heads=4,
+        num_layers=1,
+    )
+
+    prompt_text = "Title:"
+    prompt = tokenizer.encode(prompt_text)
+
+    print(f"\nپرامپت: {prompt_text}")
+    print("تولید متن...")
+
+    output_tokens = generate(
+        model,
+        prompt,
+        max_new_tokens=80,
+        temperature=0.6,
+    )
+
+    print("متن تولیدشده:")
+    print(tokenizer.decode(output_tokens))
+
+    prompt_text = "Title:"
+    prompt = tokenizer.encode(prompt_text)
+
+    print(f"\nپرامپت: {prompt_text}")
+    print("تولید متن...")
+    output_tokens = generate(
+        model,
+        prompt,
+        max_new_tokens=80,
+        temperature=0.6,
+    )
+
+    print("متن تولیدشده:")
+    print(tokenizer.decode(output_tokens))
