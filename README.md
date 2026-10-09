@@ -4,7 +4,7 @@ This repository contains Python projects related to Natural Language Processing 
 
 ## Projects
 
-1. Data Pipeline
+### 1. Data Pipeline
 
 File: "data_pipeline.py"
 
@@ -23,7 +23,7 @@ Features:
 - Preparing batches and attention masks
 - Dataset statistics
 
-2.Character-Level and BPE Tokenizers
+### 2.Character-Level and BPE Tokenizers
 
 File: "tokenizer1.py"
 
@@ -39,7 +39,7 @@ Features:
 - Building a vocabulary from learned merge rules
 - Calculating compression ratios and vocabulary statistics
 
-3.Advanced BPE Tokenizer
+### 3.Advanced BPE Tokenizer
 
 File: "tokenizer2.py"
 
@@ -55,25 +55,31 @@ Features:
 - Encoding and decoding
 - Comparison with OpenAI's "tiktoken"
 
-4.Mini GPT with PyTorch
+### 4. Mini GPT with PyTorch
 
-File: "mini_gpt_torch.py"
+**File:** `mini_gpt_torch(1).py`
 
-This project focuses on implementing the main components of a small GPT-style language model using PyTorch.
+This project implements a small GPT-style language model using PyTorch.
+It covers the main components of a Transformer architecture and
+demonstrates how a language model can be trained to predict and generate
+text.
 
-Features:
+**Features:** - Token and positional embeddings - Custom Layer
+Normalization - Causal Multi-Head Self-Attention - Manual implementation
+of Softmax and Cross-Entropy Loss - Feed-Forward Neural Networks -
+Transformer Blocks with residual connections - Causal attention
+masking - Parameter counting and memory estimation - Model training
+using the AdamW optimizer - Autoregressive text generation with
+temperature sampling - Training with raw text or data prepared by the
+NLP pipeline
 
-- Token and positional embeddings
-- Layer normalization
-- Causal multi-head self-attention
-- Feed-forward neural networks
-- Transformer blocks
-- Mini GPT architecture
-- Causal masking and cross-entropy loss
-- Training and text generation utilities
-- Parameter counting and memory estimation
+The project also demonstrates an end-to-end workflow using movie
+information from the TMDB dataset. The text is cleaned, filtered,
+deduplicated, tokenized, and used to train the model.
 
-The goal is to understand how Transformer components work together to predict the next token.
+The main goal is to understand the internal components of GPT-style
+models and how data preparation, tokenization, training, and text
+generation work together.
 
 ## Technologies Used
 
@@ -92,7 +98,7 @@ python tokenizer1.py
 
 python tokenizer2.py
 
-python mini_gpt_torch.py
+python mini_gpt_torch(1).py
 
 Some features require additional Python packages, such as "torch", "regex", and "tiktoken".
 

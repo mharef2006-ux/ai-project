@@ -2,6 +2,7 @@ from collections import Counter
 from typing import List, Dict, Tuple, Any, Optional
 
 
+
 class CharTokenizer:
     """A simple character-level tokenizer mapping ASCII/Unicode characters to integer values."""
 
@@ -17,8 +18,7 @@ class CharTokenizer:
         # TODO: Map each character in the string to its integer character code representation
         self.text = text
         return [ord(char) for char in self.text]
-    
-        raise NotImplementedError("Implement this method")
+
 
     def decode(self, tokens: List[int]) -> str:
         """Convert a list of integer character codes back into a string.
@@ -78,7 +78,7 @@ class BPETokenizer:
                 merged_tokens.append(tokens[i])
                 i += 1
         return merged_tokens
-    
+
 
     def train(self, text: str, num_merges: int) -> "BPETokenizer":
         """Train BPE vocabulary starting from 256 base bytes and learn merge rules from text.
@@ -137,7 +137,7 @@ class BPETokenizer:
         # TODO: Lookup byte sequences for tokens, concatenate them, and decode UTF-8 bytes into text
         byte_data = b"".join(self.vocab[token] for token in tokens if token in self.vocab)
         return byte_data.decode("utf-8", errors="replace")
-    
+
 
     def vocab_size(self) -> int:
         """Get current vocabulary size.
@@ -148,7 +148,7 @@ class BPETokenizer:
         # TODO: Return total number of items in vocabulary
         
         return len(self.vocab)
-    
+
 
     def token_to_str(self, token_id: int) -> str:
         """Convert a single token ID into its string representation for visualization.
