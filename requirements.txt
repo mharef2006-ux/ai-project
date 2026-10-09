@@ -1,0 +1,4 @@
+torch
+regex
+tiktoken
+numpy

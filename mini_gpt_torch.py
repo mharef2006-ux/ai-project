@@ -348,7 +348,6 @@ def generate(model, prompt_tokens, max_new_tokens=100, temperature=0.8):
             len(prompt_tokens) + max_new_tokens. The context fed to the model at each
             step must be truncated to the model's maximum sequence length.
     """
-    raise NotImplementedError("Implement this function")
 
 
 def train_mini_gpt(text, vocab_size=256, embed_dim=128, num_heads=4,
@@ -384,7 +383,7 @@ def train_mini_gpt(text, vocab_size=256, embed_dim=128, num_heads=4,
     Returns:
         MiniGPT: The trained model instance, left in eval mode.
     """
-    raise NotImplementedError("Implement this function")
+
 
 
 def parameter_breakdown():
